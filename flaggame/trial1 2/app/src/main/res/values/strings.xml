@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">trial1</string>
+    <string name="title_activity_gflag">GFlag</string>
+    <string name="title_activity_gcountry">GCountry</string>
+    <string name="title_activity_ghints">GHints</string>
+    <string name="title_activity_alevels">ALevels</string>
+    <string name="title_activity_alevel2">alevel2</string>
+    <string name="title_activity_alevel3">ALevel3</string>
+    <string name="title_activity_gflag2">gflag2</string>
+</resources>

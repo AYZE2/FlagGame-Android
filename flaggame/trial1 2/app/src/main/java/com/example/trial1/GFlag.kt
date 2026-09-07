@@ -19,9 +19,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.trial1.ui.theme.Trial1Theme
+import kotlinx.coroutines.delay
 
 class GFlag : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,17 +51,46 @@ class GFlag : ComponentActivity() {
 @Preview
 @Composable
 fun FlagGame() {
-    val countries = Flag.shuffled().take(256) // Assuming Flag is a list of all countries
-    var randomFlags by remember { mutableStateOf(countries.shuffled().take(3)) }
-    var correctFlag by remember { mutableStateOf(randomFlags.random()) }
-    var selectedFlag by remember { mutableStateOf<Country?>(null) }
-    var message by remember { mutableStateOf("") }
-    var showNext by remember { mutableStateOf(false) }
+    // Only the flags' drawable resource ids (Ints) are saved across
+    // rotation/process death; Country objects are derived from them so
+    // state survives configuration changes.
+    var flagOptions by rememberSaveable {
+        mutableStateOf(Flag.shuffled().take(3).map { it.imageResource })
+    }
+    var correctFlag by rememberSaveable { mutableStateOf(flagOptions.random()) }
+    val randomFlags = remember(flagOptions) {
+        flagOptions.map { id -> Flag.first { it.imageResource == id } }
+    }
+    val correctCountry = remember(correctFlag) {
+        Flag.first { it.imageResource == correctFlag }
+    }
+    var message by rememberSaveable { mutableStateOf("") }
+    var showNext by rememberSaveable { mutableStateOf(false) }
+    var timeLeft by rememberSaveable { mutableStateOf(ROUND_TIME_SECONDS) }
+
+    // Countdown timer for the current round. Restarts whenever a new set of
+    // flags is shown, and stops as soon as an answer has been submitted.
+    LaunchedEffect(flagOptions, showNext) {
+        if (!showNext) {
+            timeLeft = ROUND_TIME_SECONDS
+            while (timeLeft > 0) {
+                delay(1000)
+                timeLeft--
+            }
+            message = "WRONG! Time's up - Correct country: ${correctCountry.name}"
+            showNext = true
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Text(
+            text = "Time left: $timeLeft s",
+            fontSize = 20.sp,
+            color = if (timeLeft <= 5 && !showNext) Color.Red else Color.Unspecified
+        )
         Text(
             text = message,
             fontSize = 24.sp,
@@ -69,7 +101,7 @@ fun FlagGame() {
             }
         )
         Text(text = "Guess The Flag")
-        Text(text = correctFlag.name, fontSize = 20.sp)
+        Text(text = correctCountry.name, fontSize = 20.sp)
 
         Row(
             modifier = Modifier
@@ -83,16 +115,13 @@ fun FlagGame() {
                     contentDescription = "Flag image",
                     modifier = Modifier
                         .size(100.dp)
-                        .clickable {
-                            if (!showNext) {
-                                selectedFlag = flag
-                                message = if (flag == correctFlag) {
-                                    "CORRECT! Correct country: ${correctFlag.name}"
-                                } else {
-                                    "WRONG! Correct country: ${correctFlag.name}"
-                                }
-                                showNext = true
+                        .clickable(enabled = !showNext) {
+                            message = if (flag == correctCountry) {
+                                "CORRECT! Correct country: ${correctCountry.name}"
+                            } else {
+                                "WRONG! Correct country: ${correctCountry.name}"
                             }
+                            showNext = true
                         }
                 )
             }
@@ -100,9 +129,8 @@ fun FlagGame() {
 
         Button(onClick = {
             if (showNext) {
-                randomFlags = countries.shuffled().take(3)
-                correctFlag = randomFlags.random()
-                selectedFlag = null
+                flagOptions = Flag.shuffled().take(3).map { it.imageResource }
+                correctFlag = flagOptions.random()
                 message = ""
                 showNext = false
             }
